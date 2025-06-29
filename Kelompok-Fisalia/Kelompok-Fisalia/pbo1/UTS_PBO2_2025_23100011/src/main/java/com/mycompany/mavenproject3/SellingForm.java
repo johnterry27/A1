@@ -3,6 +3,8 @@ package com.mycompany.mavenproject3;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -85,13 +87,41 @@ public class SellingForm extends JFrame {
                     JOptionPane.showMessageDialog(this, "Qty tidak valid!");
                     return;
                 }
-                selectedProduct.setStock(selectedProduct.getStock() - qty);
-                Date selectedDate = (Date) dateSpinner.getValue();
 
-                // Simpan ke daftar penjualan
+                Date selectedDate = (Date) dateSpinner.getValue();
+                double total = selectedProduct.getPrice() * qty;
+
+                // Kurangi stok di objek
+                selectedProduct.setStock(selectedProduct.getStock() - qty);
+
+                // Tambah ke list lokal
                 Sale sale = new Sale(selectedDate, selectedProduct.getCode(),
                         selectedProduct.getName(), selectedProduct.getPrice(), qty);
                 mainApp.addSale(sale);
+
+                // Simpan ke database
+                try (Connection conn = DBConnection.getConnection()) {
+                    String sql = "INSERT INTO sales (date, product_code, product_name, price, quantity, total) VALUES (?, ?, ?, ?, ?, ?)";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setDate(1, new java.sql.Date(selectedDate.getTime()));
+                    ps.setString(2, selectedProduct.getCode());
+                    ps.setString(3, selectedProduct.getName());
+                    ps.setDouble(4, selectedProduct.getPrice());
+                    ps.setInt(5, qty);
+                    ps.setDouble(6, total);
+                    ps.executeUpdate();
+
+                    // Update stok produk di database
+                    String updateStockSql = "UPDATE product SET stock = ? WHERE code = ?";
+                    PreparedStatement psUpdate = conn.prepareStatement(updateStockSql);
+                    psUpdate.setInt(1, selectedProduct.getStock());
+                    psUpdate.setString(2, selectedProduct.getCode());
+                    psUpdate.executeUpdate();
+
+                } catch (Exception dbErr) {
+                    dbErr.printStackTrace();
+                    JOptionPane.showMessageDialog(this, "Gagal menyimpan ke database.");
+                }
 
                 JOptionPane.showMessageDialog(this, "Transaksi berhasil!");
                 updateFields();

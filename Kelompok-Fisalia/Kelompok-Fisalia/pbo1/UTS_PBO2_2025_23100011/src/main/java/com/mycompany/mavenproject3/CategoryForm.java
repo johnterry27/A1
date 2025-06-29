@@ -7,6 +7,10 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 
 import javax.swing.JButton;
@@ -63,7 +67,7 @@ public class CategoryForm extends JFrame {
         JButton editBtn = new JButton("Edit");
         JButton deleteBtn = new JButton("Hapus");
         btnPanel.add(addBtn);
-        btnPanel.add(editBtn);
+        btnPanel.add(editBtn); // opsional: belum diimplementasikan
         btnPanel.add(deleteBtn);
         panel.add(btnPanel, gbc);
 
@@ -73,32 +77,49 @@ public class CategoryForm extends JFrame {
 
         loadCategoryData();
 
+        // Tombol Tambah
         addBtn.addActionListener(e -> {
             String id = idField.getText().trim();
             String name = nameField.getText().trim();
             String desc = descField.getText().trim();
 
             if (!name.isEmpty() && !isCategoryExist(name)) {
-                model.addRow(new Object[]{id, name, desc});
-                if (mainApp != null) {
-                    mainApp.addCategory(name);
-                    mainApp.updateAllProductFormCategoryCombo(); // Penting
+                try (Connection conn = DBConnection.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("INSERT INTO category (id, name, description) VALUES (?, ?, ?)")) {
+                    stmt.setString(1, id);
+                    stmt.setString(2, name);
+                    stmt.setString(3, desc);
+                    stmt.executeUpdate();
+                    loadCategoryData();
+                    if (mainApp != null) {
+                        mainApp.updateAllProductFormCategoryCombo();
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
                 }
             }
         });
 
+        // Tombol Hapus
         deleteBtn.addActionListener(e -> {
             int selected = table.getSelectedRow();
             if (selected != -1) {
-                String category = model.getValueAt(selected, 1).toString();
-                model.removeRow(selected);
-                if (mainApp != null) {
-                    mainApp.removeCategory(category);
-                    mainApp.updateAllProductFormCategoryCombo(); // Penting
+                String id = model.getValueAt(selected, 0).toString();
+                try (Connection conn = DBConnection.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("DELETE FROM category WHERE id = ?")) {
+                    stmt.setString(1, id);
+                    stmt.executeUpdate();
+                    loadCategoryData();
+                    if (mainApp != null) {
+                        mainApp.updateAllProductFormCategoryCombo();
+                    }
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
                 }
             }
         });
 
+        // Klik pada tabel → tampilkan ke input
         table.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 int row = table.getSelectedRow();
@@ -122,13 +143,20 @@ public class CategoryForm extends JFrame {
     }
 
     private void loadCategoryData() {
-        if (mainApp != null) {
-            List<String> categories = mainApp.getCategoryList();
-            model.setRowCount(0);
-            int i = 1;
-            for (String cat : categories) {
-                model.addRow(new Object[]{"C" + i++, cat, ""});
+        model.setRowCount(0); // bersihkan tabel dulu
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT * FROM category");
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                String id = rs.getString("id");
+                String name = rs.getString("name");
+                String desc = rs.getString("description");
+                model.addRow(new Object[]{id, name, desc});
             }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 }

@@ -1,111 +1,138 @@
 package com.mycompany.mavenproject3;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JTextField;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
+import java.awt.*;
+import java.sql.*;
+import javax.swing.*;
+import javax.swing.table.*;
 
 public class CustomerForm extends JFrame {
     private JTable customerTable;
     private DefaultTableModel tableModel;
-    private JTextField nameField;
-    private JTextField phoneField;
-    private JTextField emailField;
-    private JTextField addressField;
+    private JTextField nameField, phoneField, emailField, addressField;
     private JButton saveButton, editButton, deleteButton;
 
-    private List<Customer> customerList;
-
     public CustomerForm() {
-        customerList = new ArrayList<>();
-
         setTitle("WK. Cuan | Data Pelanggan");
-        setSize(750, 500);
+        setSize(900, 500);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(10, 10));
 
-        // TABEL
-        tableModel = new DefaultTableModel(new String[]{"ID", "Nama", "No. HP", "Email", "Alamat"}, 0);
-        customerTable = new JTable(tableModel);
-        customerTable.setRowHeight(22); // tinggi baris isi
-        JTableHeader header = customerTable.getTableHeader();
-        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 24)); // tinggi header
-        add(new JScrollPane(customerTable), BorderLayout.CENTER);
-        customerTable.setFillsViewportHeight(true);
-
-        // FORM INPUT PAKAI GRIDBAGLAYOUT
+        // === FORM INPUT ===
         JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
+        formPanel.setBackground(new Color(220, 220, 220));
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(3, 3, 3, 3); // jarak antar komponen
-        gbc.anchor = GridBagConstraints.EAST;
+        gbc.insets = new Insets(5, 10, 5, 10);
+        gbc.anchor = GridBagConstraints.WEST;
 
-        // Nama
-        gbc.gridx = 0; gbc.gridy = 0;
-        formPanel.add(new JLabel("Nama:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        nameField = new JTextField(20);
-        formPanel.add(nameField, gbc);
+        String[] labels = {"Nama:", "No. HP:", "Email:", "Alamat:"};
+        JTextField[] fields = new JTextField[labels.length];
 
-        // No. HP
-        gbc.gridx = 0; gbc.gridy++;
-        gbc.fill = GridBagConstraints.NONE;
-        formPanel.add(new JLabel("No. HP:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        phoneField = new JTextField(20);
-        formPanel.add(phoneField, gbc);
+        for (int i = 0; i < labels.length; i++) {
+            gbc.gridx = 0; gbc.gridy = i;
+            formPanel.add(new JLabel(labels[i]), gbc);
+            gbc.gridx = 1;
+            fields[i] = new JTextField(25);
+            formPanel.add(fields[i], gbc);
+        }
 
-        // Email
-        gbc.gridx = 0; gbc.gridy++;
-        gbc.fill = GridBagConstraints.NONE;
-        formPanel.add(new JLabel("Email:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        emailField = new JTextField(20);
-        formPanel.add(emailField, gbc);
+        nameField = fields[0];
+        phoneField = fields[1];
+        emailField = fields[2];
+        addressField = fields[3];
 
-        // Alamat
-        gbc.gridx = 0; gbc.gridy++;
-        gbc.fill = GridBagConstraints.NONE;
-        formPanel.add(new JLabel("Alamat:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        addressField = new JTextField(20);
-        formPanel.add(addressField, gbc);
-
-        // PANEL TOMBOL
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        saveButton = new JButton("Simpan");
+        JPanel buttonPanel = new JPanel();
+        saveButton = new JButton("Tambah");
         editButton = new JButton("Edit");
         deleteButton = new JButton("Hapus");
-
         buttonPanel.add(saveButton);
         buttonPanel.add(editButton);
         buttonPanel.add(deleteButton);
 
-        // Gabungkan input + tombol
-        JPanel inputSection = new JPanel(new BorderLayout());
-        inputSection.add(formPanel, BorderLayout.CENTER);
-        inputSection.add(buttonPanel, BorderLayout.SOUTH);
-        add(inputSection, BorderLayout.NORTH);
+        gbc.gridx = 0; gbc.gridy = labels.length;
+        gbc.gridwidth = 2;
+        formPanel.add(buttonPanel, gbc);
 
-        // AKSI SIMPAN
-        saveButton.addActionListener(e -> {
+        add(formPanel, BorderLayout.NORTH);
+
+        // === TABEL ===
+        tableModel = new DefaultTableModel(new String[]{"ID", "Nama", "No. HP", "Email", "Alamat"}, 0);
+        customerTable = new JTable(tableModel);
+        customerTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        JScrollPane scrollPane = new JScrollPane(customerTable);
+        add(scrollPane, BorderLayout.CENTER);
+
+        setColumnWidths(5, 200);
+
+        loadCustomerData();
+
+        // === AKSI ===
+        saveButton.addActionListener(e -> saveCustomer());
+        editButton.addActionListener(e -> updateCustomer());
+        deleteButton.addActionListener(e -> deleteCustomer());
+        customerTable.getSelectionModel().addListSelectionListener(e -> fillFormFromTable());
+    }
+
+    private void setColumnWidths(int columnCount, int width) {
+        TableColumnModel columnModel = customerTable.getColumnModel();
+        for (int i = 0; i < columnCount; i++) {
+            columnModel.getColumn(i).setPreferredWidth(width);
+        }
+    }
+
+    private void loadCustomerData() {
+        tableModel.setRowCount(0);
+        try (Connection conn = DBConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM customer")) {
+            while (rs.next()) {
+                tableModel.addRow(new Object[]{
+                        rs.getInt("id"),
+                        rs.getString("name"),
+                        rs.getString("phone"),
+                        rs.getString("email"),
+                        rs.getString("address")
+                });
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveCustomer() {
+        String name = nameField.getText().trim();
+        String phone = phoneField.getText().trim();
+        String email = emailField.getText().trim();
+        String address = addressField.getText().trim();
+
+        if (name.isEmpty() || phone.isEmpty() || email.isEmpty() || address.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Semua field harus diisi!");
+            return;
+        }
+
+        if (!phone.matches("\\d+")) {
+            JOptionPane.showMessageDialog(this, "No. HP harus angka!");
+            return;
+        }
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("INSERT INTO customer(name, phone, email, address) VALUES (?, ?, ?, ?)")) {
+            stmt.setString(1, name);
+            stmt.setString(2, phone);
+            stmt.setString(3, email);
+            stmt.setString(4, address);
+            stmt.executeUpdate();
+            loadCustomerData();
+            clearFields();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateCustomer() {
+        int row = customerTable.getSelectedRow();
+        if (row != -1) {
+            int id = (int) tableModel.getValueAt(row, 0);
             String name = nameField.getText().trim();
             String phone = phoneField.getText().trim();
             String email = emailField.getText().trim();
@@ -116,65 +143,59 @@ public class CustomerForm extends JFrame {
                 return;
             }
 
-            Customer customer = new Customer(name, phone, email, address);
-            customerList.add(customer);
-            tableModel.addRow(new Object[]{customer.getId(), name, phone, email, address});
-            clearFields();
-        });
+            if (!phone.matches("\\d+")) {
+                JOptionPane.showMessageDialog(this, "No. HP harus angka!");
+                return;
+            }
 
-        // AKSI EDIT
-        editButton.addActionListener(e -> {
-            int row = customerTable.getSelectedRow();
-            if (row != -1) {
-                String name = nameField.getText().trim();
-                String phone = phoneField.getText().trim();
-                String email = emailField.getText().trim();
-                String address = addressField.getText().trim();
+            try (Connection conn = DBConnection.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                         "UPDATE customer SET name=?, phone=?, email=?, address=? WHERE id=?")) {
+                stmt.setString(1, name);
+                stmt.setString(2, phone);
+                stmt.setString(3, email);
+                stmt.setString(4, address);
+                stmt.setInt(5, id);
+                stmt.executeUpdate();
+                loadCustomerData();
+                clearFields();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Pilih data yang ingin diedit!");
+        }
+    }
 
-                if (name.isEmpty() || phone.isEmpty() || email.isEmpty() || address.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Semua field harus diisi!");
-                    return;
+    private void deleteCustomer() {
+        int row = customerTable.getSelectedRow();
+        if (row != -1) {
+            int confirm = JOptionPane.showConfirmDialog(this, "Yakin ingin menghapus?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                int id = (int) tableModel.getValueAt(row, 0);
+                try (Connection conn = DBConnection.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("DELETE FROM customer WHERE id=?")) {
+                    stmt.setInt(1, id);
+                    stmt.executeUpdate();
+                    loadCustomerData();
+                    clearFields();
+                } catch (SQLException e) {
+                    e.printStackTrace();
                 }
-
-                Customer customer = customerList.get(row);
-                customer.setName(name);
-                customer.setPhone(phone);
-                customer.setEmail(email);
-                customer.setAddress(address);
-
-                tableModel.setValueAt(name, row, 1);
-                tableModel.setValueAt(phone, row, 2);
-                tableModel.setValueAt(email, row, 3);
-                tableModel.setValueAt(address, row, 4);
-
-                clearFields();
-            } else {
-                JOptionPane.showMessageDialog(this, "Pilih baris yang ingin diedit!");
             }
-        });
+        } else {
+            JOptionPane.showMessageDialog(this, "Pilih data yang ingin dihapus!");
+        }
+    }
 
-        // AKSI HAPUS
-        deleteButton.addActionListener(e -> {
-            int row = customerTable.getSelectedRow();
-            if (row != -1) {
-                customerList.remove(row);
-                tableModel.removeRow(row);
-                clearFields();
-            } else {
-                JOptionPane.showMessageDialog(this, "Pilih data yang ingin dihapus!");
-            }
-        });
-
-        // SELEKSI TABEL
-        customerTable.getSelectionModel().addListSelectionListener(e -> {
-            int row = customerTable.getSelectedRow();
-            if (row != -1) {
-                nameField.setText(tableModel.getValueAt(row, 1).toString());
-                phoneField.setText(tableModel.getValueAt(row, 2).toString());
-                emailField.setText(tableModel.getValueAt(row, 3).toString());
-                addressField.setText(tableModel.getValueAt(row, 4).toString());
-            }
-        });
+    private void fillFormFromTable() {
+        int row = customerTable.getSelectedRow();
+        if (row != -1) {
+            nameField.setText(tableModel.getValueAt(row, 1).toString());
+            phoneField.setText(tableModel.getValueAt(row, 2).toString());
+            emailField.setText(tableModel.getValueAt(row, 3).toString());
+            addressField.setText(tableModel.getValueAt(row, 4).toString());
+        }
     }
 
     private void clearFields() {
@@ -182,5 +203,6 @@ public class CustomerForm extends JFrame {
         phoneField.setText("");
         emailField.setText("");
         addressField.setText("");
+        customerTable.clearSelection();
     }
 }

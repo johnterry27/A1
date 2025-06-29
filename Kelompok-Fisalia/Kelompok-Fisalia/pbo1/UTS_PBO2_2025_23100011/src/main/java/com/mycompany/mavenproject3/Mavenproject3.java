@@ -4,6 +4,9 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,10 +26,10 @@ public class Mavenproject3 extends JFrame implements Runnable {
     private JButton addCustomerButton;
     private JButton kelolaKategoriButton;
     private JButton laporanPenjualanButton;
-    private JButton logoutButton; // Tambahan tombol logout
+    private JButton logoutButton;
 
     private List<Product> productList = new ArrayList<>();
-    private List<String> categoryList = new ArrayList<>(List.of("Coffee", "Dairy", "Juice", "Soda", "Tea"));
+    private List<String> categoryList = new ArrayList<>();
     private List<ProductForm> productForms = new ArrayList<>();
     private List<Sale> sales = new ArrayList<>();
 
@@ -37,39 +40,32 @@ public class Mavenproject3 extends JFrame implements Runnable {
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // Data awal produk
-        productList.add(new Product(1, "P001", "Americano", "Coffee", 10000, 10));
-        productList.add(new Product(2, "P002", "Pandan Latte", "Coffee", 20000, 10));
-        productList.add(new Product(3, "P003", "Aren Latte", "Coffee", 15000, 10));
-        productList.add(new Product(4, "P004", "Matcha Frappucino", "Tea", 28000, 10));
-        productList.add(new Product(5, "P005", "Jus Apel", "Juice", 17000, 10));
+        loadProductsFromDatabase();
+        loadCategoriesFromDatabase();
 
         this.text = getBannerTextFromProducts();
         this.x = -getFontMetrics(new Font("Arial", Font.BOLD, 18)).stringWidth(text);
 
-        // Banner
         bannerPanel = new BannerPanel();
         add(bannerPanel, BorderLayout.CENTER);
 
-        // Panel tombol
         JPanel bottomPanel = new JPanel();
         addProductButton = new JButton("Kelola Produk");
         addSellButton = new JButton("Penjualan");
         addCustomerButton = new JButton("Kelola Customer");
         kelolaKategoriButton = new JButton("Kategori Produk");
         laporanPenjualanButton = new JButton("Laporan Penjualan");
-        logoutButton = new JButton("Logout"); // Tombol Logout
+        logoutButton = new JButton("Logout");
 
         bottomPanel.add(addProductButton);
         bottomPanel.add(addSellButton);
         bottomPanel.add(addCustomerButton);
         bottomPanel.add(kelolaKategoriButton);
         bottomPanel.add(laporanPenjualanButton);
-        bottomPanel.add(logoutButton); // Ditambahkan ke panel
+        bottomPanel.add(logoutButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // Aksi tombol
         addProductButton.addActionListener(e -> {
             ProductForm pf = new ProductForm(this);
             productForms.add(pf);
@@ -81,12 +77,11 @@ public class Mavenproject3 extends JFrame implements Runnable {
         kelolaKategoriButton.addActionListener(e -> new CategoryForm(this).setVisible(true));
         laporanPenjualanButton.addActionListener(e -> new SalesReport(this).setVisible(true));
 
-        // Aksi tombol logout
         logoutButton.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(this, "Yakin ingin logout?", "Logout", JOptionPane.YES_NO_OPTION);
+            int confirm = JOptionPane.showConfirmDialog(this, "Yakin ingin logout?", "Konfirmasi Logout", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 dispose();
-                new LoginForm(); // Kembali ke form login
+                System.exit(0);
             }
         });
 
@@ -94,7 +89,42 @@ public class Mavenproject3 extends JFrame implements Runnable {
         new Thread(this).start();
     }
 
-    // Banner panel
+    private void loadProductsFromDatabase() {
+        try (Connection conn = DBConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT * FROM product")) {
+
+            productList.clear();
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                String code = rs.getString("code");
+                String name = rs.getString("name");
+                String category = rs.getString("category");
+                int price = rs.getInt("price");
+                int stock = rs.getInt("stock");
+                productList.add(new Product(id, code, name, category, price, stock));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Gagal mengambil data produk dari database", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadCategoriesFromDatabase() {
+        categoryList.clear();
+        try (Connection conn = DBConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT name FROM category")) {
+
+            while (rs.next()) {
+                String name = rs.getString("name");
+                categoryList.add(name);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private class BannerPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics g) {
@@ -105,7 +135,6 @@ public class Mavenproject3 extends JFrame implements Runnable {
         }
     }
 
-    // Animasi banner
     @Override
     public void run() {
         width = getWidth();
@@ -123,7 +152,6 @@ public class Mavenproject3 extends JFrame implements Runnable {
         }
     }
 
-    // Membuat teks banner dari daftar produk
     public String getBannerTextFromProducts() {
         StringBuilder sb = new StringBuilder("Menu yang tersedia: ");
         for (int i = 0; i < productList.size(); i++) {
@@ -139,6 +167,7 @@ public class Mavenproject3 extends JFrame implements Runnable {
     }
 
     public void refreshBanner() {
+        loadProductsFromDatabase();
         setBannerText(getBannerTextFromProducts());
     }
 
@@ -163,6 +192,7 @@ public class Mavenproject3 extends JFrame implements Runnable {
     }
 
     public void updateAllProductFormCategoryCombo() {
+        loadCategoriesFromDatabase();
         for (ProductForm pf : productForms) {
             pf.updateCategoryCombo();
         }
@@ -176,7 +206,6 @@ public class Mavenproject3 extends JFrame implements Runnable {
         sales.add(sale);
     }
 
-    // Diblokir akses langsung tanpa login
     public static void main(String[] args) {
         JOptionPane.showMessageDialog(null, "Akses ditolak! Silakan login terlebih dahulu.", "Akses Dibatasi", JOptionPane.ERROR_MESSAGE);
         System.exit(0);
